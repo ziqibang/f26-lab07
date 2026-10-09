@@ -13,20 +13,36 @@ Keep it short and specific. Point at methods, call sites, and test names.
 
 ### The pin (write this section before you direct the refactor)
 
-**The pin.** File and test name, plus one sentence naming the method and the
-observable result it pins. Not "recurring bookings work". Green against the
-shipped code, and you did not edit or delete an existing test method to get
-there.
+**The pin.**
+`src/test/java/edu/cmu/cs214/scheduling/workflow/BookingWorkflowCharacterizationTest.java`,
+`recurringSubmitSkipsAnOccurrenceThatStartsWhenAnotherEnds`. It pins that
+`submit` on a RECURRING request skips an occurrence that starts at exactly the
+minute an existing booking in the room ends, so the outcome has 1 skipped slot
+(week 1, 09:00) and 1 booked occurrence (week 2, occurrence index 2), with the
+message `"series S-1: 1 booked, 1 skipped"` and one notification per booking
+written. It is a new class, green against the shipped code (36 run, 0
+failures), and no existing test method was edited.
 
-**Why that one, and does a shipped test already cover it?** Of everything
-`BookingWorkflow` does, why is this the behavior worth a test? If something
-shipped comes close, say what your pin adds. If nothing does, say how you
-checked.
+**Why that one, and does a shipped test already cover it?** `submit` has three
+copies of the room-overlap check, and they disagree. REGULAR and BLOCKED use
+`<` (lines 68-69, 152-153), so back-to-back slots are fine. RECURRING uses `<=`
+(lines 121-122), so back-to-back counts as a conflict. Merging duplicated code
+into one shared helper is the most likely move in this refactor, and it would
+silently pick one operator and change series behavior. No shipped test would
+notice. I grepped the test tree for `recurring` and `getSkipped`. The only
+recurring submit test, `recurringSubmitBooksEveryWeekOfAnOpenSeries`, uses an
+empty room, and nothing reads `getSkipped()`. The closest test,
+`regularSubmitAcceptsASlotThatStartsWhenAnotherEnds`, pins the boundary only for
+REGULAR, which goes the opposite way.
 
-**What a regeneration would do differently here.** Suppose someone
-threw this class away and regenerated it from a one-line description of what a
-booking workflow does. Name the decision that would be made a second time, and
-say which way it would probably go.
+**What a regeneration would do differently here.** It would decide again whether
+a slot that starts when another ends is a conflict, and it would almost
+certainly write one shared half-open check (`start < otherEnd && otherStart <
+end`), applied to every type. `TimeSlot` documents an exclusive end, and that is
+the conventional answer. A series that is skipped today would then be booked.
+Whether the `<=` is a bug or a deliberate buffer between series meetings isn't
+written down anywhere, and a regeneration would lose it either way without
+anyone noticing.
 
 ### The directive
 
