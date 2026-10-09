@@ -207,7 +207,12 @@ different factory.
 
 Read `pricing/`. Not coded, one sentence.
 
-**The pattern.** Which one fits `PriceCalculator`, and the problem that makes
-it fit. Name the problem.
+**The pattern.** Decorator, one wrapper per pricing rule, fits `PriceCalculator`
+because `price()` hardcodes four ordered adjustments (base rate, weekend +25%,
+long-booking -10%, tier discount, lines 30-44). Adding, removing, or reordering
+a rule, such as a holiday surcharge, means editing that one method, when it
+could be a new wrapper stacked on the others.
 
-**Would you apply it today?** Yes or no, one line, with the reason.
+**Would you apply it today?** No. There are only four stable rules in about 15
+readable lines, and `everyRuleAppliesInOrder` already pins their order, so the
+extra classes would be the same speculative structure Milestone 2 criticizes.
