@@ -46,26 +46,67 @@ anyone noticing.
 
 ### The directive
 
-**The refactor and the exact directive.** Name the refactor (one from the menu
-in the handout) and paste the directive you gave the agent, including the scope
-you set, meaning which files and packages were in bounds, which were not, and
-one line on why the boundary sits where it does.
+**The refactor and the exact directive.** Replace Conditional with
+Polymorphism. The directive:
+
+> Refactor `workflow/BookingWorkflow.java` using **Replace Conditional with
+> Polymorphism**. Introduce one handler per `BookingType` (REGULAR, RECURRING,
+> BLOCKED) that implements submit, cancel, price, and describe, so that no
+> `switch` on booking type remains in those four methods. `BookingWorkflow`
+> keeps its public constructor and method signatures and delegates to the
+> handler for the type.
+> **In scope:** `src/main/java/.../workflow/` only (new files allowed there).
+> **Out of scope:** `domain/`, `notify/`, `pricing/`, `reporting/`, and all of
+> `src/test/`. Do not edit or delete any test.
+> **Preserve behavior exactly:** every message string, notification subject and
+> body, and the overlap operators as written (RECURRING uses `<=`, the others
+> `<`). Do not merge the overlap checks into one comparison.
+> Run `mvn -B test` and show me the totals.
+
+The boundary is `workflow/` because every caller (`ReportServiceTest`,
+`NotificationHubTest`, the workflow tests) reaches this code only through
+`BookingWorkflow`'s public constructor and four public methods. If those stay
+fixed, nothing outside the package has a reason to change.
 
 ### The result
 
-**The diff and the suite.** How you are showing the diff to the TA (a commit,
-`git diff`, a branch), and the totals line (the shipped count plus your pin,
-all green).
+**The diff and the suite.** The diff is the commit "Refactor BookingWorkflow:
+replace type switch with polymorphism", which comes right after the pin commit
+"Pin recurring back-to-back skip before refactor". To show it, run
+`git show --stat` on that commit, then `git show` for the full diff. It adds
+`BookingHandler` (interface: `submit`, `cancel`, `price`, `describe`) and
+`RegularBookingHandler`, `RecurringBookingHandler`, `BlockedBookingHandler`.
+`BookingWorkflow` picks the handler from an `EnumMap<BookingType,
+BookingHandler>`, so no `switch` remains (I grepped `workflow/` for `switch` and
+`case`). Totals: `Tests run: 36, Failures: 0, Errors: 0, Skipped: 0`,
+`BUILD SUCCESS` (35 shipped plus the pin).
 
-**What did NOT change: behavior and files.** The observable behavior you
-checked is still the same, including anything that surprised you while reading.
-Which files outside the scope are untouched, and how you verified that rather
-than assumed it. If the agent reached outside the directive, say where and what
-you did about it.
+**What did NOT change: behavior and files.** The pin stays green, so a series
+still skips an occurrence that starts when another booking ends. The recurring
+`<=` was moved as written, not merged with the `<` used by REGULAR and BLOCKED.
+Two other things surprised me while reading, and both are preserved: a
+recurring submit never runs the member double-booking check that REGULAR runs,
+and cancelling an occurrence also cancels every later occurrence in the series.
+To check that the moved code is identical, I stripped indentation and compared
+every line of the three handlers against the original `BookingWorkflow.java`
+from the pin commit. The only new lines are class and method headers and three
+references qualified as `BookingWorkflow.FACILITIES_CONTACT` /
+`BookingWorkflow.recipientFor(...)`. All message strings, notification
+subjects, and comparison operators match. For files, `git status` showed
+changes only under `workflow/`, and `git diff --stat` on `src/test/` is empty.
+The agent stayed inside the directive.
 
-**One thing the agent changed that you had to look at twice.** Something you
-checked line by line before accepting. If there was nothing, say how carefully
-you read the diff.
+**One thing the agent changed that you had to look at twice.** The `default:`
+branches. Each of the four methods had one (`"unsupported booking type"`,
+`false`, `0.0`, `"Booking #id in room"`), and the agent replaced them with
+`handler == null` checks that return the same values. Like the old `default:`
+branches, these checks can never run, because all three enum values are in the
+map. I checked that each fallback value matched the original. I also checked
+that the guards still run before the handler is called, in the same order as
+before: the null request, the unknown room, and an unknown or already-cancelled
+booking. A smaller change: `FACILITIES_CONTACT` and `recipientFor` went from
+`private` to package-private so the handlers can use them. They are still not
+visible outside `workflow/`.
 
 ### The closing explanation
 
