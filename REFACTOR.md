@@ -127,42 +127,79 @@ because then the suite, not the old code, would be the spec.
 
 ## Milestone 2: The pattern critique
 
-Read `notify/`. It works and the outbox tests pass.
-
 ### The patterns present
 
-List every design pattern you can name in that package. For each one, the class
-or classes that carry it.
+- **Singleton:** `NotifierFactory.getInstance()`.
+- **Factory:** `NotifierFactory.createStrategy()`.
+- **Strategy:** `NotificationStrategy`, `EmailNotificationStrategy`, held in
+  `NotificationHub.strategy`.
+- **Observer:** `NotificationHub.subscribe/publish`, `NotificationSubscriber`,
+  `OutboxSubscriber`.
+- **Adapter:** `OutboxSubscriber`, which turns `onNotification` into
+  `Outbox.append`.
 
 ### The problem each one solves
 
-For each pattern you listed, what would have to be true about the requirements
-for that pattern to be the right call? One sentence each, not in terms of
-"flexibility".
+- **Singleton:** there must be exactly one shared instance, because it holds
+  state that would break if duplicated.
+- **Factory:** which class to build depends on runtime information such as
+  config, and callers shouldn't make that choice.
+- **Strategy:** there are several ways to render a message, chosen per hub or
+  per message.
+- **Observer:** several independent receivers react to the same event, and the
+  publisher doesn't know who they are.
+- **Adapter:** an existing class has the wrong interface for its caller.
 
 ### Which of those problems exist here
 
-For each pattern, does the problem it solves exist in this codebase? Point at
-the code that settles it.
+None of them.
+- **Singleton:** `NotifierFactory` has no state besides `instance`
+  (`NotifierFactory.java:6`). The only thing that needs one instance is the
+  test `factoryHandsBackTheSameInstance`.
+- **Factory:** `createStrategy()` takes no input and always returns
+  `EmailNotificationStrategy` (`:19-21`). Its single caller is
+  `NotificationHub.java:22`.
+- **Strategy:** there is one implementation, and nothing can choose another,
+  because the hub hardwires it through the factory (`NotificationHub.java:22`).
+- **Observer:** there is one subscriber, added by the hub's own constructor
+  (`NotificationHub.java:23`). `subscribe()` has no caller outside `notify/`.
+- **Adapter:** it exists only to fit the Observer interface.
 
 ### The simpler structure
 
-**Your proposal.** What replaces `notify/`. Sketch the classes and the one
-method that matters.
+**Your proposal.** `NotificationHub` with one method,
+`publish(NotificationMessage m)`, which does
+`outbox.append("To: " + m.recipient() + " | Subject: " + m.subject() + " | " + m.body())`.
+It keeps `getOutbox()`, and `Outbox` and `NotificationMessage` stay as they are.
 
-**What stays the same.** The tested behavior it must still produce, named
-precisely enough that a reader can check it against the shipped tests.
+**What stays the same.** These tests must stay green:
+- `publishedMessageLandsInTheOutboxFullyRendered`
+- `aConfirmationFromTheWorkflowReachesTheOutbox`
+- every workflow test that counts `hub.getOutbox().size()`
 
-**What you would keep, if anything.** If you would keep one interface, say
-which and why. "None of it" is a fine answer if you can defend it.
+These two tests pin structure rather than behavior:
+- `hubDeliversToItsOneSubscriber`
+- `factoryHandsBackTheSameInstance`
+
+**What you would keep, if anything.** None of the interfaces. `BookingWorkflow`
+only calls `publish`, and the tests only read the outbox.
 
 ### What would bring each layer back
 
-For at least two of the layers you would remove, what requirement, if it
-arrived next sprint, would make that layer the right structure? Be specific
-about the requirement, not about the pattern.
+- **Observer:** facilities asks for every "Room blocked" message to also go to
+  a Slack channel and an audit log. Each new receiver should be attached
+  without editing the hub.
+- **Strategy:** members can choose SMS instead of email. The same message then
+  has to render differently depending on the recipient.
+- **Factory:** the format depends on deployment config, for example plain text
+  in dev and HTML email in production.
 
-**Misuse or anti-pattern?** Say which this is and why the distinction matters.
+**Misuse or anti-pattern?** This is misuse. The patterns are built correctly,
+but none of them has the problem it is meant to solve here. The distinction
+matters because you fix misuse by deleting the layer until its requirement
+shows up. The pattern itself stays a good tool. The Singleton comes closest to
+an anti-pattern: it is global state that stops a test from injecting a
+different factory.
 
 ---
 
