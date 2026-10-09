@@ -110,11 +110,18 @@ visible outside `workflow/`.
 
 ### The closing explanation
 
-**Refactor or regenerate?** Argue whether regenerating `BookingWorkflow` from scratch
-would have been the better call, using the lecture's four questions (test
-coverage, code age, spec quality, and reach). Be concrete about this codebase.
+**Refactor or regenerate?** Refactoring was the better call. Only one of the six
+notification texts is pinned (`NotificationHubTest`), and none of the edge rules
+were pinned before my test: the recurring `<=`, the 26-week cap, the one-day
+block rule, and cancel-forward. A regeneration could break all of them and still
+pass 35/35. The code is young, with a single commit, which makes regenerating
+cheap. But the spec is one README paragraph, so the code is the only record of
+those rules, and the class reaches every store write, every report, and every
+member's inbox.
 
-**What would flip your answer.** A condition about the artifact, not a feeling.
+**What would flip your answer.** I would regenerate if every rule above were
+written down and pinned by a test, including all six notification texts,
+because then the suite, not the old code, would be the spec.
 
 ---
 
